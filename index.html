@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow for German Words</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-color: #ffffff;
+            --accent-glow: rgba(255, 255, 255, 0.15);
+            --correct-glow: rgba(34, 197, 94, 0.2);
+            --wrong-glow: rgba(239, 68, 68, 0.2);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .bg-shapes {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .shape {
+            position: absolute;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            will-change: transform;
+        }
+
+        .circle {
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .square {
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        @keyframes floatSlow {
+            0% { transform: translateY(0) translateX(0) rotate(0deg); }
+            50% { transform: translateY(-40px) translateX(20px) rotate(180deg); }
+            100% { transform: translateY(0) translateX(0) rotate(360deg); }
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            max-width: 800px;
+            padding: 40px 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 42px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 50px;
+            background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .screen {
+            display: none;
+            width: 100%;
+        }
+
+        .screen.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .mode-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .quiz-opt-btn {
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+        }
+        
+        .sentences-opt-btn {
+            border-color: rgba(255, 255, 255, 0.25) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
+
+        .stories-opt-btn {
+            border-color: rgba(168, 85, 247, 0.4) !important;
+            background: rgba(168, 85, 247, 0.08) !important;
+        }
+
+        .floating-opt {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            padding: 22px;
+            border-radius: 16px;
+            color: var(--text-color);
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .floating-opt:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 15px 35px var(--accent-glow);
+        }
+
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            width: 100%;
+        }
+
+        @media (max-width: 500px) {
+            .category-grid { grid-template-columns: 1fr; }
+        }
+
+        .flowchart-workspace {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .flow-node {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 16px 24px;
+            width: 85%;
+            max-width: 500px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            position: relative;
+        }
+
+        .flow-connector {
+            width: 2px;
+            height: 25px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 100%);
+            position: relative;
+        }
+
+        .flow-connector::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 5px 4px 0 4px;
+            border-style: solid;
+            border-color: rgba(255,255,255,0.15) transparent transparent transparent;
+        }
+
+        .node-left { font-size: 18px; font-weight: 700; max-width: 55%; word-break: break-word; }
+        .node-right { font-size: 15px; color: rgba(255, 255, 255, 0.5); max-width: 40%; text-align: right; word-break: break-word; }
+
+        .back-btn {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            color: rgba(255,255,255,0.6);
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 30px;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover { background: rgba(255,255,255,0.1); color: #ffffff; }
+
+        .quiz-container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 35px;
+            box-sizing: border-box;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .quiz-progress {
+            font-size: 14px;
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .quiz-question {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 30px;
+            line-height: 1.3;
+        }
+
+        .quiz-options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .quiz-btn {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--glass-border);
+            padding: 16px 20px;
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .quiz-btn:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .quiz-btn.correct {
+            background: rgba(34, 197, 94, 0.15) !important;
+            border-color: #22c55e !important;
+            box-shadow: 0 0 20px var(--correct-glow);
+        }
+
+        .quiz-btn.wrong {
+            background: rgba(239, 68, 68, 0.15) !important;
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 20px var(--wrong-glow);
+        }
+
+        .score-layout {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .score-val {
+            font-size: 48px;
+            font-weight: 900;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        .story-header-bar {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .action-toggle-btn {
+            background: rgba(168, 85, 247, 0.2);
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            color: #e9d5ff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .action-toggle-btn:hover {
+            background: rgba(168, 85, 247, 0.3);
+            box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+        }
+
+        .story-display-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 30px;
+            width: 100%;
+            box-sizing: border-box;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+        }
+
+        .story-title-view {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 25px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 12px;
+            color: #f3e8ff;
+        }
+
+        .story-interactive-pane {
+            font-size: 18px;
+            line-height: 1.8;
+            letter-spacing: 0.3px;
+            color: #f4f4f5;
+        }
+
+        .story-interactive-pane p {
+            margin-bottom: 20px;
+        }
+
+        .interactive-word {
+            display: inline-block;
+            cursor: pointer;
+            border-bottom: 1px dashed rgba(255,255,255,0.25);
+            padding: 0 2px;
+            transition: all 0.15s ease;
+            border-radius: 4px;
+        }
+
+        .interactive-word:hover {
+            background: rgba(255,255,255,0.15);
+            color: #ffffff;
+            border-bottom-color: #ffffff;
+        }
+
+        .translation-overlay-box {
+            display: none;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px dashed rgba(168, 85, 247, 0.3);
+            color: #d4d4d8;
+            font-size: 16px;
+            line-height: 1.7;
+            font-style: italic;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .translation-overlay-box.visible {
+            display: block;
+        }
+
+        .dict-popover-chatbox {
+            position: absolute;
+            z-index: 1000;
+            background: #18181b;
+            border: 1px solid rgba(168, 85, 247, 0.5);
+            border-radius: 12px;
+            padding: 10px 14px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8), 0 0 15px rgba(168, 85, 247, 0.2);
+            font-size: 14px;
+            max-width: 200px;
+            color: #ffffff;
+            display: none;
+            transform: translate(-50%, -100%);
+            margin-top: -10px;
+            animation: popUpAnim 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .dict-popover-chatbox::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 6px 6px 0 6px;
+            border-style: solid;
+            border-color: #18181b transparent transparent transparent;
+        }
+
+        @keyframes popUpAnim {
+            from { opacity: 0; transform: translate(-50%, -90%) scale(0.95); }
+            to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-shapes" id="shapesLayer"></div>
+    <div class="dict-popover-chatbox" id="globalDictBox"></div>
+
+    <div class="app-container">
+        <h1>Flow for German Words</h1>
+
+        <div class="screen active" id="modeScreen">
+            <div class="mode-menu">
+                <div class="floating-opt" data-action="vocab" data-mode="de-en">German to English</div>
+                <div class="floating-opt" data-action="vocab" data-mode="en-de">English to German</div>
+                <div class="floating-opt" data-action="vocab" data-mode="random">Random Mix Mode</div>
+                <div class="floating-opt quiz-opt-btn" data-action="vocab" data-mode="quiz">⚡ Practice Quiz Engine</div>
+                <div class="floating-opt sentences-opt-btn" data-action="sentences">💬 70 Basic Essential Sentences</div>
+                <div class="floating-opt stories-opt-btn" data-action="stories">📖 German Stories Module</div>
+            </div>
+        </div>
+
+        <div class="screen" id="categoryScreen">
+            <button class="back-btn" id="categoryBackBtn">← Back</button>
+            <div class="category-grid" id="categoryGridContainer"></div>
+        </div>
+
+        <div class="screen" id="flowchartScreen">
+            <button class="back-btn" id="flowchartBackBtn">← Back</button>
+            <div class="flowchart-workspace" id="flowchartWorkspace"></div>
+        </div>
+
+        <div class="screen" id="quizScreen">
+            <button class="back-btn" onclick="navigateTo('categoryScreen')">← Quit Quiz</button>
+            <div class="quiz-container" id="quizContainerBox"></div>
+        </div>
+
+        <div class="screen" id="storyReaderScreen">
+            <div class="story-header-bar">
+                <button class="back-btn" style="margin-bottom:0;" id="readerBackBtn">← Back to List</button>
+                <button class="action-toggle-btn" id="toggleTranslationBtn">Translation</button>
+            </div>
+            <div class="story-display-card" id="storyDisplayCardArea"></div>
+        </div>
+    </div>
+
+    <script>
+        const vocabularyData = {
+            basic: [
+                {de:"Hallo", en:"Hello"}, {de:"Bitte", en:"Please"}, {de:"Danke", en:"Thank you"}, {de:"Ja", en:"Yes"}, {de:"Nein", en:"No"},
+                {de:"Tschüss", en:"Goodbye"}, {de:"Guten Morgen", en:"Good morning"}, {de:"Guten Tag", en:"Good day"}, {de:"Guten Abend", en:"Good evening"}, {de:"Gute Nacht", en:"Good night"},
+                {de:"Wie geht’s?", en:"How are you?"}, {de:"Gut", en:"Good"}, {de:"Schlecht", en:"Bad"}, {de:"Willkommen", en:"Welcome"}, {de:"Entschuldigung", en:"Excuse me / Sorry"},
+                {de:"Auf Wiedersehen", en:"Goodbye (formal)"}, {de:"Bis bald", en:"See you soon"}, {de:"Bis später", en:"See you later"}, {de:"Vielleicht", en:"Perhaps / Maybe"}, {de:"Genau", en:"Exactly"},
+                {de:"Es tut mir leid", en:"I am sorry"}, {de:"Kein Problem", en:"No problem"}, {de:"Alles klar", en:"All right / clear"}, {de:"Wie bitte?", en:"I beg your pardon?"}, {de:"Hilfe", en:"Help"},
+                {de:"Wer?", en:"Who?"}, {de:"Was?", en:"What?"}, {de:"Warum?", en:"Why?"}, {de:"Wo?", en:"Where?"}, {de:"Wann?", en:"When?"},
+                {de:"Wie?", en:"How?"}, {de:"Wie viel?", en:"How much?"}, {de:"Woher?", en:"Where from?"}, {de:"Wohin?", en:"Where to?"}, {de:"Hier", en:"Here"},
+                {de:"Dort", en:"There"}, {de:"Etwas", en:"Something"}, {de:"Nichts", en:"Nothing"}, {de:"Viel", en:"Much / A lot"}, {de:"Wenig", en:"Little / Few"},
+                {de:"Immer", en:"Always"}, {de:"Nie", en:"Never"}, {de:"Oft", en:"Often"}, {de:"Manchmal", en:"Sometimes"}, {de:"Schön", en:"Beautiful / Nice"},
+                {de:"Hässlich", en:"Ugly"}, {de:"Neu", en:"New"}, {de:"Alt", en:"Old"}, {de:"Groß", en:"Big / Tall"}, {de:"Klein", en:"Small / Short"}
+            ],
+            relations: [
+                {de:"Mutter", en:"Mother"}, {de:"Vater", en:"Father"}, {de:"Sohn", en:"Son"}, {de:"Tochter", en:"Daughter"}, {de:"Bruder", en:"Brother"},
+                {de:"Schwester", en:"Sister"}, {de:"Oma", en:"Grandmother"}, {de:"Opa", en:"Grandfather"}, {de:"Kind", en:"Child"}, {de:"Baby", en:"Baby"},
+                {de:"Eltern", en:"Parents"}, {de:"Geschwister", en:"Siblings"}, {de:"Großeltern", en:"Grandparents"}, {de:"Onkel", en:"Uncle"}, {de:"Tante", en:"Aunt"},
+                {de:"Cousin", en:"Cousin (male)"}, {de:"Cousine", en:"Cousin (female)"}, {de:"Neffe", en:"Nephew"}, {de:"Nichte", en:"Niece"}, {de:"Freund", en:"Friend / Boyfriend"},
+                {de:"Freundin", en:"Friend / Girlfriend"}, {de:"Mann", en:"Man / Husband"}, {de:"Frau", en:"Woman / Wife"}, {de:"Kollege", en:"Colleague"}, {de:"Partner", en:"Partner"},
+                {de:"Mädchen", en:"Girl"}, {de:"Junge", en:"Boy"}, {de:"Familie", en:"Family"}, {de:"Mensch", en:"Human / Person"}, {de:"Leute", en:"People"},
+                {de:"Nachbar", en:"Neighbor"}, {de:"Gast", en:"Guest"}, {de:"Chef", en:"Boss"}, {de:"Lehrer", en:"Teacher"}, {de:"Schüler", en:"Student / Pupil"},
+                {de:"Verlobte", en:"Fiancée"}, {de:"Ehepaar", en:"Married couple"}, {de:"Zwillinge", en:"Twins"}, {de:"Enkel", en:"Grandson"}, {de:"Enkelin", en:"Granddaughter"},
+                {de:"Schwiegermutter", en:"Mother-in-law"}, {de:"Schwiegervater", en:"Father-in-law"}, {de:"Bekannte", en:"Acquaintance"}, {de:"Erwachsene", en:"Adult"}, {de:"Gruppe", en:"Group"},
+                {de:"Team", en:"Team"}, {de:"Bürger", en:"Citizen"}, {de:"Feind", en:"Enemy"}, {de:"Held", en:"Hero"}, {de:"Zuschauer", en:"Spectator"}
+            ],
+            numbers: [
+                {de:"Null", en:"Zero"}, {de:"Eins", en:"One"}, {de:"Zwei", en:"Two"}, {de:"Drei", en:"Three"}, {de:"Vier", en:"Four"},
+                {de:"Fünf", en:"Five"}, {de:"Sechs", en:"Six"}, {de:"Sieben", en:"Seven"}, {de:"Acht", en:"Eight"}, {de:"Neun", en:"Nine"},
+                {de:"Zehn", en:"Ten"}, {de:"Elf", en:"Eleven"}, {de:"Zwölf", en:"Twelve"}, {de:"Dreizehn", en:"Thirteen"}, {de:"Zwanzig", en:"Twenty"},
+                {de:"Dreißig", en:"Thirty"}, {de:"Hundert", en:"Hundred"}, {de:"Tausend", en:"Thousand"}, {de:"Zeit", en:"Time"}, {de:"Jahr", en:"Year"},
+                {de:"Monat", en:"Month"}, {de:"Woche", en:"Week"}, {de:"Tag", en:"Day"}, {de:"Stunde", en:"Hour"}, {de:"Minute", en:"Minute"},
+                {de:"Sekunde", en:"Second"}, {de:"Montag", en:"Monday"}, {de:"Dienstag", en:"Tuesday"}, {de:"Mittwoch", en:"Wednesday"}, {de:"Donnerstag", en:"Thursday"},
+                {de:"Freitag", en:"Friday"}, {de:"Samstag", en:"Saturday"}, {de:"Sonntag", en:"Sunday"}, {de:"Frühling", en:"Spring"}, {de:"Sommer", en:"Summer"},
+                {de:"Herbst", en:"Autumn"}, {de:"Winter", en:"Winter"}, {de:"Uhr", en:"Clock / O'clock"}, {de:"Kalender", en:"Calendar"}, {de:"Früh", en:"Early"},
+                {de:"Spät", en:"Late"}, {de:"Gestern", en:"Yesterday"}, {de:"Heute", en:"Today"}, {de:"Morgen", en:"Tomorrow"}, {de:"Zukunft", en:"Future"},
+                {de:"Vergangenheit", en:"Past"}, {de:"Gegenwart", en:"Present"}, {de:"Datum", en:"Date"}, {de:"Mal", en:"Time / Occurrence"}, {de:"Dauer", en:"Duration"}
+            ],
+            tasks: [
+                {de:"Machen", en:"To do / make"}, {de:"Arbeiten", en:"To work"}, {de:"Lernen", en:"To learn / study"}, {de:"Sprechen", en:"To speak"}, {de:"Gehen", en:"To go"},
+                {de:"Kommen", en:"To come"}, {de:"Essen", en:"To eat"}, {de:"Trinken", en:"To drink"}, {de:"Schreiben", en:"To write"}, {de:"Lesen", en:"To read"},
+                {de:"Hören", en:"To hear / listen"}, {de:"Sehen", en:"To see"}, {de:"Kaufenn", en:"To buy"}, {de:"Verkaufen", en:"To sell"}, {de:"Schlafen", en:"To sleep"},
+                {de:"Wohnen", en:"To reside / live"}, {de:"Finden", en:"To find"}, {de:"Suchen", en:"To search / look for"}, {de:"Denken", en:"To think"}, {de:"Bringen", en:"To bring"},
+                {de:"Nehmen", en:"To take"}, {de:"Geben", en:"To give"}, {de:"Helfen", en:"To help"}, {de:"Verstehen", en:"To understand"}, {de:"Wissen", en:"To know (facts)"},
+                {de:"Kennen", en:"To know (people/places)"}, {de:"Sagen", en:"To say"}, {de:"Fragen", en:"To ask"}, {de:"Antworten", en:"To answer"}, {de:"Anfangen", en:"To begin"},
+                {de:"Beenden", en:"To finish / end"}, {de:"Bleiben", en:"To stay / remain"}, {de:"Fahren", en:"To drive / travel"}, {de:"Fliegen", en:"To fly"}, {de:"Schwimmen", en:"To swim"},
+                {de:"Laufen", en:"To run"}, {de:"Spielen", en:"To play"}, {de:"Singen", en:"To sing"}, {de:"Tanzen", en:"To dance"}, {de:"Kochen", en:"To cook"},
+                {de:"Waschen", en:"To wash"}, {de:"Putzen", en:"To clean"}, {de:"Öffnen", en:"To open"}, {de:"Schließen", en:"To close"}, {de:"Zahlen", en:"To pay"},
+                {de:"Bestellen", en:"To order"}, {de:"Anrufen", en:"To call (phone)"}, {de:"Warten", en:"To wait"}, {de:"Brauchen", en:"To need"}, {de:"Vergessen", en:"To forget"}
+            ],
+            emotions: [
+                {de:"Glücklich", en:"Happy"}, {de:"Traurig", en:"Sad"}, {de:"Müde", en:"Tired"}, {de:"Wütend", en:"Angry"}, {de:"Ruhig", en:"Calm"},
+                {de:"Nervös", en:"Nervous"}, {de:"Stolz", en:"Proud"}, {de:"Überrascht", en:"Surprised"}, {de:"Angst", en:"Fear / Afraid"}, {de:"Liebe", en:"Love"},
+                {de:"Hass", en:"Hate"}, {de:"Freude", en:"Joy"}, {de:"Langweilig", en:"Boring"}, {de:"Interessant", en:"Interesting"}, {de:"Einsam", en:"Lonely"},
+                {de:"Aufgeregt", en:"Excited"}, {de:"Zufrieden", en:"Satisfied / Content"}, {de:"Enttäuscht", en:"Disappointed"}, {de:"Frustriert", en:"Frustrated"}, {de:"Neidisch", en:"Envious / Jealous"},
+                {de:"Schüchtern", en:"Shy"}, {de:"Sicher", en:"Safe / Certain"}, {de:"Unsicher", en:"Insecure / Uncertain"}, {de:"Mutig", en:"Brave"}, {de:"Freundlich", en:"Friendly"},
+                {de:"Unfreundlich", en:"Unfriendly"}, {de:"Höflich", en:"Polite"}, {de:"Unhöflich", en:"Rude"}, {de:"Lustig", en:"Funny"}, {de:"Ernst", en:"Serious"},
+                {de:"Ehrlich", en:"Honest"}, {de:"Geduldig", en:"Patient"}, {de:"Ungeduldig", en:"Impatient"}, {de:"Nett", en:"Kind / Nice"}, {de:"Sauer", en:"Sour / Annoyed"},
+                {de:"Verliebt", en:"In love"}, {de:"Glück", en:"Luck / Happiness"}, {de:"Sorge", en:"Worry / Concern"}, {de:"Mitleid", en:"Pity / Compassion"}, {de:"Hoffnung", en:"Hope"},
+                {de:"Traum", en:"Dream"}, {de:"Schmerz", en:"Pain"}, {de:"Gefühl", en:"Feeling"}, {de:"Laune", en:"Mood"}, {de:"Stimmung", en:"Atmosphere / Mood"},
+                {de:"Humor", en:"Humor"}, {de:"Weinen", en:"To cry"}, {de:"Lachen", en:"To laugh"}, {de:"Lächeln", en:"To smile"}, {de:"Hassen", en:"To hate"}
+            ],
+            food: [
+                {de:"Brot", en:"Bread"}, {de:"Wasser", en:"Water"}, {de:"Milch", en:"Milk"}, {de:"Käse", en:"Cheese"}, {de:"Fleisch", en:"Meat"},
+                {de:"Fisch", en:"Fish"}, {de:"Apfel", en:"Apple"}, {de:"Banane", en:"Banana"}, {de:"Gemüse", en:"Vegetables"}, {de:"Obst", en:"Fruit"},
+                {de:"Ei", en:"Egg"}, {de:"Reis", en:"Rice"}, {de:"Nudeln", en:"Pasta / Noodles"}, {de:"Suppe", en:"Soup"}, {de:"Salat", en:"Salat"},
+                {de:"Zucker", en:"Sugar"}, {de:"Salz", en:"Salt"}, {de:"Pfeffer", en:"Pepper"}, {de:"Öl", en:"Oil"}, {de:"Butter", en:"Butter"},
+                {de:"Kaffee", en:"Coffee"}, {de:"Tee", en:"Tea"}, {de:"Saft", en:"Juice"}, {de:"Bier", en:"Beer"}, {de:"Wein", en:"Wine"},
+                {de:"Frühstück", en:"Breakfast"}, {de:"Mittagessen", en:"Lunch"}, {de:"Abendessen", en:"Dinner"}, {de:"Restaurant", en:"Restaurant"}, {de:"Speisekarte", en:"Menu"},
+                {de:"Kellner", en:"Waiter"}, {de:"Rechnung", en:"Bill / Check"}, {de:"Lecker", en:"Delicious"}, {de:"Süß", en:"Sweet"}, {de:"Sauer", en:"Sour"},
+                {de:"Scharf", en:"Spicy / Hot"}, {de:"Bitter", en:"Bitter"}, {de:"Hunger", en:"Hunger"}, {de:"Durst", en:"Thirst"}, {de:"Backen", en:"To bake"},
+                {de:"Trinken", en:"To drink"}, {de:"Essen", en:"To eat"}, {de:"Kartoffel", en:"Potato"}, {de:"Tomate", en:"Tomato"}, {de:"Zwiebel", en:"Onion"},
+                {de:"Knoblauch", en:"Garlic"}, {de:"Kuchen", en:"Cake"}, {de:"Schokolade", en:"Chocolate"}, {de:"Eis", en:"Ice cream"}, {de:"Honig", en:"Honey"}
+            ],
+            places: [
+                {de:"Haus", en:"House"}, {de:"Wohnung", en:"Apartment"}, {de:"Zimmer", en:"Room"}, {de:"Stadt", en:"City"}, {de:"Land", en:"Country / Rural area"},
+                {de:"Straße", en:"Street"}, {de:"Bahnhof", en:"Train station"}, {de:"Flughafen", en:"Airport"}, {de:"Hotel", en:"Hotel"}, {de:"Schule", en:"School"},
+                {de:"Universität", en:"University"}, {de:"Krankenhaus", en:"Hospital"}, {de:"Apotheke", en:"Pharmacy"}, {de:"Supermarkt", en:"Supermarket"}, {de:"Bäckerei", en:"Bakery"},
+                {de:"Bank", en:"Bank"}, {de:"Park", en:"Park"}, {de:"Museum", en:"Museum"}, {de:"Theater", en:"Theater"}, {de:"Kino", en:"Cinema"},
+                {de:"Kirche", en:"Church"}, {de:"Post", en:"Post office"}, {de:"Polizei", en:"Police"}, {de:"Bibliothek", en:"Library"}, {de:"Strand", en:"Beach"},
+                {de:"Meer", en:"Sea / Ocean"}, {de:"Berg", en:"Mountain"}, {de:"Fluss", en:"River"}, {de:"Wald", en:"Forest"}, {de:"Garten", en:"Garden"},
+                {de:"Arbeitsplatz", en:"Workplace"}, {de:"Büro", en:"Office"}, {de:"Geschäft", en:"Shop / Store"}, {de:"Markt", en:"Market"}, {de:"Brücke", en:"Bridge"},
+                {de:"Platz", en:"Square / Place"}, {de:"Küche", en:"Kitchen"}, {de:"Bad", en:"Bathroom"}, {de:"Schlafzimmer", en:"Bedroom"}, {de:"Wohnzimmer", en:"Living room"},
+                {de:"Eingang", en:"Entrance"}, {de:"Ausgang", en:"Exit"}, {de:"Haltestelle", en:"Bus/Tram stop"}, {de:"Gleis", en:"Platform / Track"}, {de:"Ziel", en:"Destination"},
+                {de:"Reise", en:"Journey / Trip"}, {de:"Karte", en:"Map / Ticket"}, {de:"Ticket", en:"Ticket"}, {de:"Koffer", en:"Suitcase"}, {de:"Tasche", en:"Bag"}
+            ],
+            nature: [
+                {de:"Sonne", en:"Sun"}, {de:"Mond", en:"Moon"}, {de:"Stern", en:"Star"}, {de:"Himmel", en:"Sky"}, {de:"Erde", en:"Earth / Ground"},
+                {de:"Natur", en:"Nature"}, {de:"Baum", en:"Tree"}, {de:"Blume", en:"Flower"}, {de:"Pflanze", en:"Plant"}, {de:"Gras", en:"Grass"},
+                {de:"Tier", en:"Animal"}, {de:"Hund", en:"Dog"}, {de:"Katze", en:"Cat"}, {de:"Vogel", en:"Bird"}, {de:"Pferd", en:"Horse"},
+                {de:"Fisch", en:"Fish"}, {de:"Insekt", en:"Insect"}, {de:"Wetter", en:"Weather"}, {de:"Regen", en:"Rain"}, {de:"Schnee", en:"Snow"},
+                {de:"Wind", en:"Wind"}, {de:"Wolke", en:"Cloud"}, {de:"Gewitter", en:"Thunderstorm"}, {de:"Blitz", en:"Lightning"}, {de:"Donner", en:"Thunder"},
+                {de:"Luft", en:"Air"}, {de:"Feuer", en:"Fire"}, {de:"Wasser", en:"Water"}, {de:"Stein", en:"Stone"}, {de:"Sand", en:"Sand"},
+                {de:"Insel", en:"Island"}, {de:"See", en:"Lake"}, {de:"Ozean", en:"Ocean"}, {de:"Klima", en:"Climate"},
+                {de:"Temperatur", en:"Temperature"}, {de:"Warm", en:"Warm"}, {de:"Kalt", en:"Cold"}, {de:"Heiß", en:"Hot"}, {de:"Eisig", en:"Icy"},
+                {de:"Sonnig", en:"Sunny"}, {de:"Wolkig", en:"Cloudy"}, {de:"Windig", en:"Windy"}, {de:"Regnerisch", en:"Rainy"}, {de:"Umwelt", en:"Environment"},
+                {de:"Tal", en:"Valley"}, {de:"Wüste", en:"Desert"}, {de:"Landschaft", en:"Landscape"}, {de:"Hügel", en:"Hill"}
+            ],
+            objects: [
+                {de:"Buch", en:"Book"}, {de:"Stift", en:"Pen"}, {de:"Papier", en:"Paper"}, {de:"Tisch", en:"Table"}, {de:"Stuhl", en:"Chair"},
+                {de:"Bett", en:"Bed"}, {de:"Schrank", en:"Wardrobe / Closet"}, {de:"Tür", en:"Door"}, {de:"Fenster", en:"Window"}, {de:"Wand", en:"Wall"},
+                {de:"Schlüssel", en:"Key"}, {de:"Handy", en:"Mobile phone"}, {de:"Computer", en:"Computer"}, {de:"Laptop", en:"Laptop"}, {de:"Uhr", en:"Watch / Clock"},
+                {de:"Brille", en:"Glasses"}, {de:"Kleidung", en:"Clothing"}, {de:"Hemd", en:"Shirt"}, {de:"Hose", en:"Pants"}, {de:"Schuh", en:"Shoe"},
+                {de:"Jacke", en:"Jacket"}, {de:"Auto", en:"Car"}, {de:"Fahrrad", en:"Bicycle"}, {de:"Zug", en:"Train"}, {de:"Bus", en:"Bus"},
+                {de:"Geld", en:"Money"}, {de:"Geldbörse", en:"Wallet"}, {de:"Kreditkarte", en:"Credit card"}, {de:"Buchstabe", en:"Letter (alphabet)"}, {de:"Wort", en:"Word"},
+                {de:"Satz", en:"Sentence"}, {de:"Spiegel", en:"Mirror"}, {de:"Licht", en:"Light"}, {de:"Lampe", en:"Lampe"}, {de:"Kamera", en:"Camera"},
+                {de:"Fernseher", en:"Television"}, {de:"Radio", en:"Radio"}, {de:"Zeitung", en:"Newspaper"}, {de:"Foto", en:"Photo"}, {de:"Bild", en:"Picture"},
+                {de:"Tasse", en:"Cup"}, {de:"Teller", en:"Plate"}, {de:"Messer", en:"Knife"}, {de:"Gabel", en:"Fork"}, {de:"Löffel", en:"Spoon"},
+                {de:"Flasche", en:"Bottle"}, {de:"Glas", en:"Glass"}, {de:"Regenschirm", en:"Umbrella"}, {de:"Handtuch", en:"Towel"}, {de:"Seife", en:"Soap"}
+            ],
+            professions: [
+                {de:"Arzt", en:"Doctor (male)"}, {de:"Ärztin", en:"Doctor (female)"}, {de:"Lehrer", en:"Teacher (male)"}, {de:"Lehrerin", en:"Teacher (female)"}, {de:"Ingenieur", en:"Engineer"},
+                {de:"Programmierer", en:"Programmer"}, {de:"Manager", en:"Manager"}, {de:"Verkäufer", en:"Salesperson"}, {de:"Kellner", en:"Waiter"}, {de:"Koch", en:"Cook / Chef"},
+                {de:"Polizist", en:"Police officer"}, {de:"Anwalt", en:"Lawyer"}, {de:"Student", en:"Student"}, {de:"Beruf", en:"Profession / Job"}, {de:"Arbeit", en:"Work"},
+                {de:"Firma", en:"Company"}, {de:"Unternehmen", en:"Enterprise / Business"}, {de:"Kollege", en:"Colleague"}, {de:"Büro", en:"Office"}, {de:"Gehalt", en:"Salary"},
+                {de:"Vertrag", en:"Contract"}, {de:"Bewerbung", en:"Application"}, {de:"Interview", en:"Interview"}, {de:"Erfahrung", en:"Experience"}, {de:"Ausbildung", en:"Training / Education"},
+                {de:"Studium", en:"University studies"}, {de:"Fach", en:"Subject / Field"}, {de:"Kurs", en:"Course"}, {de:"Klasse", en:"Class"}, {de:"Prüfung", en:"Exam / Test"},
+                {de:"Note", en:"Grade / Mark"}, {de:"Diplom", en:"Diploma"}, {de:"Wissenschaft", en:"Science"}, {de:"Wirtschaft", en:"Economy / Economics"}, {de:"Recht", en:"Law"},
+                {de:"Medizin", en:"Medicine"}, {de:"Kunst", en:"Art"}, {de:"Musik", en:"Music"}, {de:"Geschichte", en:"History"}, {de:"Sprache", en:"Language"},
+                {de:"Übersetzung", en:"Translation"}, {de:"Erfolg", en:"Success"}, {de:"Karriere", en:"Career"}, {de:"Chef", en:"Boss"}, {de:"Mitarbeiter", en:"Employee"},
+                {de:"Kunde", en:"Client / Customer"}, {de:"Projekt", en:"Project"}, {de:"Aufgabe", en:"Task / Assignment"}, {de:"Termin", en:"Appointment"}, {de:"Besprechung", en:"Meeting"}
+            ]
+        };
+
+        const sentencesData = [
+            {de: "Ich bin hungrig.", en: "I am hungry."}, {de: "Gib mir Essen.", en: "Give me food."}, {de: "Wie spät ist es?", en: "What is the time?"},
+            {de: "Ich bin durstig.", en: "I am thirsty."}, {de: "Wo ist die Toilette?", en: "Where is the toilet?"}, {de: "Ich verstehe nicht.", en: "I do not understand."},
+            {de: "Sprechen Sie Englisch?", en: "Do you speak English?"}, {de: "Wie viel kostet das?", en: "How much does this cost?"}, {de: "Helfen Sie mir bitte.", en: "Please help me."},
+            {de: "Ich weiß es nicht.", en: "I do not know."}, {de: "Wo wohnen Sie?", en: "Where do you live?"}, {de: "Wie heißt du?", en: "What is your name?"},
+            {de: "Mir geht es gut.", en: "I am doing well."}, {de: "Ich bin müde.", en: "I am tired."}, {de: "Wo ist der Ausgang?", en: "Where is the exit?"},
+            {de: "Es freut mich, dich kennenzulernen.", en: "Nice to meet you."}, {de: "Können Sie das wiederholen?", en: "Can you repeat that?"}, {de: "Ich liebe dich.", en: "I love you."},
+            {de: "Was machst du?", en: "What are you doing?"}, {de: "Ich suche den Bahnhof.", en: "I am looking for the train station."}, {de: "Guten Appetit!", en: "Enjoy your meal!"},
+            {de: "Einen Moment, bitte.", en: "One moment, please."}, {de: "Das ist mir egal.", en: "I do not care."}, {de: "Ich habe ein Problem.", en: "I have a problem."},
+            {de: "Wie ist das Wetter heute?", en: "How is the weather today?"}, {de: "Mir ist kalt.", en: "I am cold."}, {de: "Mir ist heiß.", en: "I am hot."},
+            {de: "Gute Reise!", en: "Have a good trip!"}, {de: "Ich möchte bezahlen.", en: "I would like to pay."}, {de: "Wo kann ich ein Ticket kaufen?", en: "Where can I buy a ticket?"},
+            {de: "Das ist zu teuer.", en: "That is too expensive."}, {de: "Ich bin verloren.", en: "I am lost."}, {de: "Rufen Sie einen Arzt!", en: "Call a doctor!"},
+            {de: "Ich komme gleich.", en: "I am coming right now."}, {de: "Lass mich in Ruhe.", en: "Leave me alone."}, {de: "Herzlichen Glückwunsch!", en: "Congratulations!"},
+            {de: "Was ist passiert?", en: "What happened?"}, {de: "Ich habe meine Schlüssel vergessen.", en: "I forgot my keys."}, {de: "Es ist wunderschön hier.", en: "It is beautiful here."},
+            {de: "Können Sie mir den Weg zeigen?", en: "Can you show me the way?"}, {de: "Ich bin Ausländer.", en: "I am a foreigner."}, {de: "Ich bin krank.", en: "I am sick."},
+            {de: "Wo ist das Krankenhaus?", en: "Where is the hospital?"}, {de: "Ich mag dieses Essen.", en: "I like this food."}, {de: "Das stimmt nicht.", en: "That is not correct."},
+            {de: "Keine Ahnung.", en: "No idea."}, {de: "Das ist toll!", en: "That is great!"}, {de: "Ich muss jetzt gehen.", en: "I must go now."},
+            {de: "Viel Glück!", en: "Good luck!"}, {de: "Kommen Sie herein.", en: "Come inside."}, {de: "Setzen Sie sich, bitte.", en: "Please sit down."},
+            {de: "Was kostet ein Zimmer?", en: "What does a room cost?"}, {de: "Ich habe keinen Hunger.", en: "I am not hungry."}, {de: "Ich trinke Wasser.", en: "I am drinking water."},
+            {de: "Das ist mein Freund.", en: "This is my friend."}, {de: "Sind Sie fertig?", en: "Are you ready?"}, {de: "Es ist zu spät.", en: "It is too late."},
+            {de: "Es ist sehr früh.", en: "It is very early."}, {de: "Ich brauche ein Taxi.", en: "I need a taxi."}, {de: "Fahren Sie mich zum Flughafen.", en: "Drive me to the airport."},
+            {de: "Haben Sie Kinder?", en: "Do you have children?"}, {de: "Ich studiere hier.", en: "I study here."}, {de: "Wo ist die Bank?", en: "Where is the bank?"},
+            {de: "Das Restaurant ist geschlossen.", en: "The restaurant is closed."}, {de: "Das macht nichts.", en: "It doesn't matter."}, {de: "Ich habe keine zeit.", en: "I have no time."},
+            {de: "Können Sie mir helfen?", en: "Can you help me?"}, {de: "Ich bin glücklich.", en: "I am happy."}, {de: "Wo ist mein Handy?", en: "Where is my mobile phone?"},
+            {de: "Mach die Tür zu.", en: "Close the door."}
+        ];
+
+        const storiesRepository = {
+            short: [
+                { title: "Der Kaffee (The Coffee)", de: "Ich trinke einen Kaffee. Der Kaffee ist sehr heiß. Ich mag Milch und Zucker. Das Frühstück schmeckt gut. Ich bin glücklich.", en: "I drink a coffee. The coffee is very hot. I like milk and sugar. The breakfast tastes good. I am happy." },
+                { title: "Die Katze (The Cat)", de: "Hier ist eine Katze. Die Katze heißt Luna. Sie ist klein und schwarz. Luna schläft auf dem Sofa. Sie ist müde.", en: "Here is a cat. The cat is named Luna. She is small and black. Luna sleeps on the sofa. She is tired." },
+                { title: "Mein Freund (My Friend)", de: "Das ist mein Freund Max. Er wohnt in Berlin. Max lernt Englisch. Wir spielen oft Fußball im Park. Das macht Spaß.", en: "That is my friend Max. He lives in Berlin. Max learns English. We often play football in the park. That is fun." },
+                { title: "Das Auto (The Car)", de: "Mein Auto ist blau. Es steht hier vor dem Haus. Ich fahre zur Arbeit. Die Fahrt ist kurz. Ich bin pünktlich.", en: "Mein Auto ist blau. Es steht hier vor dem Haus. Ich fahre zur Arbeit. Die Fahrt ist kurz. Ich bin pünktlich." },
+                { title: "Die Schule (The School)", de: "Die Schule ist groß. Der Lehrer spricht laut. Die Kinder schreiben ein Wort auf Papier. Sie lernen heute fleißig Deutsch.", en: "The school is big. The teacher speaks loudly. The children write a word on paper. They are studying German diligently today." },
+                { title: "Der Apfel (The Apple)", de: "Ich habe einen Apfel. Der Apfel ist rot und süß. Ich esse den Apfel gern. Obst ist sehr gesund.", en: "I have an apple. The apple is red and sweet. I like eating the apple. Fruit is very healthy." },
+                { title: "Das Wetter (The Weather)", de: "Die Sonne scheint heute hell. Der Himmel ist blau. Es ist warm. Ich gehe im Park spazieren. Das Wetter ist perfekt.", en: "The sun shines brightly today. The sky is blue. It is warm. I go for a walk in the park. The weather is perfect." },
+                { title: "Das Buch (The Book)", de: "Hier liegt ein Buch. Das Buch ist alt und interessant. Ich lese das Buch am Abend im Bett. Ich lerne viel.", en: "Here lies a book. The book is old and interesting. I read the book in the evening in bed. I learn a lot." },
+                { title: "Die Musik (The Music)", de: "Ich höre ein Lied. Die Musik ist schön und ruhig. Ich tanze ein wenig im Zimmer. Musik bringt mir große Freude.", en: "I hear a song. The music is beautiful and calm. I dance a little bit in the room. Music brings me great joy." },
+                { title: "Wasser (Water)", de: "Ich bin durstig. Ich brauche ein Glas Wasser. Das Wasser ist kalt und erfrischend. Jetzt geht es mir besser. Danke.", en: "I am thirsty. I need a glass of water. The water is cold and refreshing. Now I feel better. Thank you." }
+            ],
+            moderate: [
+                {
+                    title: "Ein Tag im Zoo (A Day at the Zoo)",
+                    de: "Heute hat Julia frei. Sie besucht mit ihrer Familie den großen Zoo in Leipzig. Die Kinder möchten unbedingt die Elefanten und die lustigen Affen sehen. Das Wetter ist sonnig und warm. Am Eingang kauft der Vater vier Eintrittskarten und eine kleine Karte. Zuerst gehen sie zu den großen Elefanten. Ein Baby-Elefant spielt glücklich mit Wasser. Die Kinder legen laut. Danach essen alle ein leckeres Eis am Kiosk. Julia kauft Schokolade, die Kinder nehmen Erdbeere. Am Nachmittag sind alle müde, aber sehr zufrieden. Es war ein perfekter Ausflug.",
+                    en: "Today Julia has a day off. She visits the big zoo in Leipzig with her family. The children absolutely want to see the elephants and the funny monkeys. The weather is sunny and warm. At the entrance, the father buys four admission tickets and a small map. First, they go to the big elephants. A baby elephant plays happily with water. The children laugh loudly. After that, everyone eats a delicious ice cream at the kiosk. Julia buys chocolate, the children take strawberry. In the afternoon everyone is tired but very satisfied. It was a perfect trip."
+                },
+                {
+                    title: "Der verlorene Schlüssel (The Lost Key)",
+                    de: "Herr Schmidt kommt am Abend spät nach Hause. Er sucht seinen Hausschlüssel in der Tasche. Aber der Schlüssel ist weg! Er sucht im Auto, auf dem Boden und fragt den Nachbarn. Niemand hat den Schlüssel gesehen. Herr Schmidt wird nervös und hat Angst. Seine Wohnung ist geschlossen und es ist kalt draußen. Plötzlich klingelt sein Handy. Seine Tochter ruft an. Sie sagt: 'Hallo Papa, dein Schlüssel liegt hier auf dem Küchentisch!' Herr Schmidt lacht laut und ist glücklich. Er fährt zurück zur Wohnung seiner Tochter.",
+                    en: "Mr. Schmidt comes home late in the evening. He looks for his house key in his bag. But the key is gone! He searches in the car, on the ground, and asks the neighbor. Nobody has seen the key. Mr. Schmidt gets nervous and afraid. His apartment is closed and it is cold outside. Suddenly his phone rings. His daughter calls. She says: 'Hello Dad, your key is lying here on the kitchen table!' Mr. Schmidt laughs loudly and is happy. He drives back to his daughter's apartment."
+                },
+                {
+                    title: "Der neue Job (The New Job)",
+                    de: "Markus ist Programmierer von Beruf. Heute ist sein erster Arbeitstag in einer neuen Firma in Frankfurt. Er steht früh um sechs Uhr auf. Er trinkt schnell einen heißen Kaffee und nimmt den Bus zum Büro. Im Büro begrüßt ihn der Chef sehr freundlich. Markus bekommt einen neuen Laptop und einen großen Schreibtisch am Fenster. Die Kollegen sind nett und helfen ihm bei allen Fragen. Am Mittag essen sie zusammen in der Kantine Pizza. Markus findet die Arbeit interessant und freut sich sehr auf die Zukunft in diesem Team.",
+                    en: "Markus is a programmer by profession. Today is his first workday at a new company in Frankfurt. He gets up early at six o'clock. He quickly drinks a hot coffee and takes the bus to the office. In the office, the boss greets him very friendly. Markus gets a new laptop and a big desk by the window. The colleagues are nice and help him with all questions. At noon they eat pizza together in the cafeteria. Markus finds the work interesting and looks forward very much to the future in this team."
+                },
+                {
+                    title: "Das Wochenend-Picknick (The Weekend Picnic)",
+                    de: "Am Samstag machen Anna und Ben ein Picknick im Stadtpark. Anna backt am Morgen frisches Brot und packt leckeren Käse, Tomaten und Äpfel in einen Korb. Ben bringt eine Flasche Saft und eine große Decke mit. Sie finden einen schönen Platz unter einem alten Baum. Das Gras ist grün und im Garten blühen viele Blumen. Sie essen, trinken und lesen zusammen ein Buch. Ein kleiner Vogel kommt und isst ein paar Brotkrümel. Es ist sehr ruhig und gemütlich im Park. Sie bleiben dort bis zum Abend.",
+                    en: "On Saturday Anna and Ben have a picnic in the city park. In the morning, Anna bakes fresh bread and packs delicious cheese, tomatoes, and apples into a basket. Ben brings a bottle of juice and a big blanket. They find a nice spot under an old tree. The grass is green and many flowers are blooming in the garden. They eat, drink, and read a book together. A little bird comes and eats a few bread crumbs. It is very quiet and cozy in the park. They stay there until evening."
+                },
+                {
+                    title: "Der kleine Hund (The Little Dog)",
+                    de: "Familie Müller wohnt in einem Haus mit einem kleinen Garten. Gestern haben sie ein Haustier bekommen. Es ist ein kleiner Hund. Er heißt Bello und ist erst drei Monate alt. Bello hat braunes Fell und große Augen. Er läuft wild im Garten herum und spielt mit einem roten Ball. Wenn er müde ist, schläft er in einem Körbchen in der Küche. Die Kinder lieben Bello sehr und geben ihm Wasser und gutes Essen. Der Vater geht am Abend mit ihm auf der Straße spazieren. Bello ist jetzt ein Teil der Familie.",
+                    en: "The Müller family lives in a house with a small garden. Yesterday they got a pet. It is a little dog. He is called Bello and is only three months old. Bello has brown fur and big eyes. He runs around wildly in the garden and plays with a red ball. When he is tired, he sleeps in a little basket in the kitchen. The children love Bello very much and give him water and good food. The father goes for a walk with him on the street in the evening. Bello is now part of the family."
+                }
+            ],
+            a1final: [
+                {
+                    title: "Eine Reise nach Wien (A Trip to Vienna)",
+                    de: "Guten Tag! Ich heiße Sarah und ich möchte euch von meiner Reise erzählen. Letzte Woche bin ich mit dem Zug nach Wien gefahren. Die Fahrt von München dauert ca. vier Stunden. Wien ist die Hauptstadt von Österreich und eine wunderschöne Kulturstadt. Ich habe in einem kleinen, gemütlichen Hotel in der Nähe vom Stadtzentrum gewohnt. Am ersten Tag habe ich das Schloss Schönbrunn besucht. Der Park dort ist riesig und sehr elegant. Am Nachmittag war ich in einem traditionellen Wiener Café. Ich habe ein großes Stück Sachertorte bestellt und einen Kaffee getrunken. Das war wirklich köstlich! Am Abend bin ich durch die alten Straßen spazieren gegangen. Die Lichter waren magisch. Ich habe viele Fotos mit meiner Kamera gemacht. Diese Reise war eine tolle Erfahrung für mich, weil ich mein Deutsch üben konnte. Ich will nächstes Jahr unbedingt wiederkommen.",
+                    en: "Good day! My name is Sarah and I would like to tell you about my trip. Last week I traveled by train to Vienna. The journey from Munich takes about four hours. Vienna is the capital of Austria and a beautiful city of culture. I stayed in a small, cozy hotel near the city center. On the first day, I visited Schönbrunn Palace. The park there is huge and very elegant. In the afternoon I was in a traditional Viennese café. I ordered a big piece of Sachertorte and drank a coffee. That was truly delicious! In the evening I went for a walk through the old streets. The lights were magical. I took many photos with my camera. This trip was a great experience for me because I could practice my German. I definitely want to come back next year."
+                },
+                {
+                    title: "Der Geburtstag von Oma (Grandma's Birthday)",
+                    de: "Morgen feiert unsere Oma ihren siebzigsten Geburtstag. Die ganze Familie kommt zu Besuch in ihr Haus auf dem Land. Meine Mutter und meine Tante sind schon in der Küche und kochen das Abendessen. Sie bereiten eine Suppe, Fleisch mit Kartoffeln und viel Gemüse vor. Mein Bruder und ich haben auch eine wichtige Aufgabe: Wir backen einen großen Schokoladenkuchen, weil Oma Schokolade liebt. Wir dekorieren den Tisch im Wohnzimmer mit schönen Blumen aus dem Garten und stellen sieben Kerzen auf. Wir haben auch ein Geschenk gekauft: Ein interessantes Buch über Geschichte und eine warme Jacke für den Winter. Ich hoffe, das Wetter wird morgen schön, damit wir am Nachmittag alle zusammen im Garten Kaffee trinken können. Wir lieben unsere Oma sehr, weil sie immer geduldig und nett zu uns ist. Es wird bestimmt ein wunderbares Fest.",
+                    en: "Tomorrow our grandmother celebrates her seventieth birthday. The whole family is coming to visit her house in the country. My mother and my aunt are already in the kitchen cooking dinner. They are preparing a soup, meat with potatoes, and a lot of vegetables. My brother and I also have an important task: We are baking a big chocolate cake because grandma loves chocolate. We decorate the table in the living room with beautiful flowers from the garden and set up seven candles. We also bought a gift: An interesting book about history and a warm jacket for the winter. I hope the weather will be nice tomorrow so that we can all drink coffee together in the garden in the afternoon. We love our grandma very much because she is always patient and kind to us. It will certainly be a wonderful celebration."
+                },
+                {
+                    title: "Einkaufen auf dem Markt (Shopping at the Market)",
+                    de: "Es ist Samstagmorgen, acht Uhr. Lukas geht heute nicht zur Arbeit, denn es ist Wochenende. Er nimmt eine große Tasche und geht zum Marktplatz in der Stadt. Jeden Samstag gibt es dort einen großen Markt mit frischen Produkten aus der Region. Lukas kauft zuerst ein Kilo rote Äpfel und ein paar Bananen bei einem netten Verkäufer. Dann geht er zum Gemüsestand. Er braucht Kartoffeln, Tomaten, Zwiebeln und Knoblauch für das Mittagessen. Er möchte heute eine leckere Gemüsesuppe kochen. Die Preise auf dem Markt sind nicht zu teuer und die Qualität ist sehr gut. Am Ende kauft Lukas noch ein frisches Brot in der Bäckerei an der Ecke und ein Stück Käse. Auf dem Rückweg trifft er seinen Nachbarn herrn Maier. Sie sprechen kurz über das Wetter und die Pläne für die kommende Woche. Danach läuft Lukas glücklich nach Hause.",
+                    en: "It is Saturday morning, eight o'clock. Lukas is not going to work today because it is the weekend. He takes a big bag and goes to the market square in the city. Every Saturday there is a big market there with fresh products from the region. Lukas first buys a kilo of red apples and a few bananas from a nice salesman. Then he goes to the vegetable stall. He needs potatoes, tomatoes, onions, and garlic for lunch. He wants to cook a delicious vegetable soup today. The prices at the market are not too expensive and the quality is very good. At the end, Lukas buys a fresh loaf of bread at the bakery on the corner and a piece of cheese. On the way back, he meets his neighbor Mr. Maier. They speak briefly about the weather and plans for the coming week. After that, Lukas walks home happily."
+                },
+                {
+                    title: "Ein neuer Mitbewohner (A New Flatmate)",
+                    de: "Thomas wohnt in einer großen Wohnung in München. Die Wohnung hat drei Zimmer, eine Küche und ein Bad. Die Miete ist sehr teuer, deshalb sucht Thomas einen Mitbewohner. Letzte Woche hat er eine Anzeige im Internet geschrieben. Viele Studenten haben angerufen und wollten das Zimmer sehen. Gestern war David da. David kommt aus London, ist zwanzig Jahre alt und studiert jetzt Medizin an der Universität in München. Er spricht schon ein bisschen Deutsch, möchte aber noch viel mehr lernen. David ist sehr ruhig, höflich und ordentlich. Er mag Musik und spielt Gitarre. Thomas fand David sofort sympathisch. Sie haben zusammen einen Kaffee getrunken und den Mietvertrag unterschrieben. Nächste Woche zieht David mit seinen Koffern ein. Thomas freut sich auf die gemeinsame Zeit in der Wohngemeinschaft.",
+                    en: "Thomas lives in a big apartment in Munich. The apartment has three rooms, a kitchen, and a bathroom. The rent is very expensive, therefore Thomas is looking for a flatmate. Last week he posted an ad on the internet. Many students called and wanted to see the room. Yesterday David was there. David comes from London, is twenty years old, and is now studying medicine at the university in Munich. He already speaks a little German but wants to learn much more. David is very quiet, polite, and tidy. He likes music and plays the guitar. Thomas liked David immediately. They drank a coffee together and signed the rental agreement. Next week David moves in with his suitcases. Thomas looks forward to the time together in the shared apartment."
+                },
+                {
+                    title: "Mein Hobby: Fotografie (My Hobby: Photography)",
+                    de: "Jeder Mensch braucht ein Hobby als Ausgleich zur Arbeit. Mein Name ist Felix und mein großes Hobby ist die Fotografie. Ich habe eine professionelle Kamera von meinem Vater bekommen. Am Wochenende gehe ich oft in die Natur, um Landschaften, Bäume und Vögel zu fotografieren. Manchmal fahre ich auch in die Stadt und mache Fotos von der alten Architektur, den Brücken und den Menschen auf der Straße. Ich finde es faszinierend, wie ein Foto einen besonderen Moment für immer festhalten kann. Am Abend setze ich mich an meinen Computer und organisiere die Bilder in Ordnern. Letzten Monat habe ich sogar einen kleinen Preis bei einem Wettbewerb gewonnen! Meine Freunde sagen, meine Fotos sind wunderschön. Mein großer Traum ist es, in der Zukunft eine eigene Ausstellung in einer Galerie zu haben oder ein Buch mit meinen besten Bildern zu veröffentlichen.",
+                    en: "Every person needs a hobby to balance work. My name is Felix and my big hobby is photography. I got a professional camera from my father. On the weekend I often go into nature to photograph landscapes, trees, and birds. Sometimes I also drive into the city and take photos of the old architecture, bridges, and people on the street. I find it fascinating how a photo can capture a special moment forever. In the evening I sit at my computer and organize the pictures into folders. Last month I even won a small prize in a competition! My friends say my photos are beautiful. My big dream is to have my own exhibition in a gallery in the future or to publish a book with my best pictures."
+                }
+            ]
+        };
+
+        const DictionaryWordsMapping = {
+            "ich": "I", "bin": "am", "hungrig": "hungry", "trinke": "drink", "einen": "a (masculine)", "kaffee": "coffee",
+            "der": "the (masculine)", "ist": "is", "sehr": "very", "heiß": "hot", "mag": "like", "milch": "milk",
+            "und": "and", "zucker": "sugar", "das": "the (neuter)", "frühstück": "breakfast", "schmeckt": "tastes",
+            "gut": "good", "glücklich": "happy", "hier": "here", "eine": "a (feminine)", "katze": "cat",
+            "die": "the (feminine)", "heißt": "is called", "luna": "Luna", "sie": "she / they", "klein": "small",
+            "schwarz": "black", "schläft": "sleeps", "auf": "on", "dem": "the (dative)", "sofa": "sofa",
+            "müde": "tired", "mein": "my", "freund": "friend", "max": "Max", "er": "he", "wohnt": "lives",
+            "in": "in", "berlin": "Berlin", "lernt": "learns / studies", "englisch": "English", "wir": "we",
+            "spielen": "play", "oft": "often", "fußball": "football", "park": "park", "macht": "makes / does",
+            "spaß": "fun", "auto": "car", "blau": "blue", "steht": "stands", "vor": "in front of", "haus": "house",
+            "fahre": "drive / go", "zur": "to the (feminine dative)", "arbeit": "work", "fahrt": "drive / journey",
+            "kurz": "short", "pünktlich": "on time", "schule": "school", "groß": "big / tall", "lehrer": "teacher",
+            "spricht": "speaks", "laut": "loudly", "kinder": "children", "schreiben": "write", "wort": "word",
+            "papier": "paper", "heute": "today", "fleißig": "diligently", "deutsch": "German",
+            "habe": "have", "apfel": "apple", "rot": "red", "süß": "sweet", "esse": "eat", "den": "the (accusative)",
+            "gern": "gladly", "obst": "fruit", "gesund": "healthy", "sonne": "sun", "scheint": "shines",
+            "hell": "brightly", "himmel": "sky", "warm": "warm", "gehe": "go", "spazieren": "walking",
+            "wetter": "weather", "perfekt": "perfect", "liegt": "lies", "buch": "book", "alt": "old",
+            "interessant": "interesting", "lese": "read", "am": "on the", "abend": "evening", "bett": "bed",
+            "lerne": "learn", "viel": "a lot", "höre": "hear", "lied": "song", "musik": "music",
+            "schön": "beautiful", "ruhig": "calm / quiet", "tanze": "dance", "wenig": "little",
+            "zimmer": "room", "bringt": "brings", "mir": "me (dative)", "große": "great", "freude": "joy",
+            "durstig": "thirsty", "brauche": "need", "glas": "glass", "wasser": "water", "erfrischend": "refreshing",
+            "jetzt": "now", "geht": "goes", "besser": "better", "danke": "thank you", "gib": "give",
+            "essen": "food / eat", "wie": "how", "spät": "late", "es": "it", "zeit": "time", "wo": "where",
+            "toilette": "toilet", "verstehe": "understand", "nicht": "not", "sprechen": "speak", "sie": "you",
+            "kostet": "costs", "helfen": "help", "bitte": "please", "weiß": "know", "wohnen": "live", "du": "you",
+            "ausgang": "exit", "freut": "pleasures", "dich": "you", "kennenzulernen": "to meet",
+            "können": "can", "wiederholen": "repeat", "liebe": "love", "was": "what", "machst": "do / make",
+            "suche": "search", "bahnhof": "train station", "guten": "good", "appetit": "appetit",
+            "einen": "one / a", "moment": "moment", "egal": "all the same", "problem": "problem",
+            "reise": "trip", "möchte": "would like", "bezahlen": "pay", "kaufen": "buy", "ticket": "ticket",
+            "zu": "too", "teuer": "expensive", "verloren": "lost", "rufen": "call", "arzt": "doctor",
+            "kommen": "come", "gleich": "right away", "lass": "let", "ruhe": "peace", "herzlichen": "cordial",
+            "glückwunsch": "congratulations", "passiert": "happened", "meine": "my", "schlüssel": "keys",
+            "vergessen": "forgotten", "wunderschön": "beautiful", "zeigen": "show", "weg": "way", "ausländer": "foreigner",
+            "krank": "sick", "krankenhaus": "hospital", "mag": "like", "stimmt": "is correct", "keine": "no",
+            "ahnung": "idea", "toll": "great", "muss": "must", "gehen": "go", "glück": "luck",
+            "herein": "inside", "setzen": "sit", "bereit": "ready", "fertig": "finished", "taxi": "taxi",
+            "fahren": "drive", "flughafen": "airport", "haben": "have", "wien": "Vienna", "schloss": "palace",
+            "geburtstag": "birthday", "oma": "grandma", "kuchen": "cake", "markt": "market", "mitbewohner": "flatmate",
+            "hobby": "hobby", "fotografie": "photography", "kamera": "camera"
+        };
+
+        const categoriesConfig = [
+            {id: "basic", name: "Basic Words"}, {id: "relations", name: "Relations"},
+            {id: "numbers", name: "Numbers & Time"}, {id: "tasks", name: "Tasks & Verbs"},
+            {id: "emotions", name: "Emotions & Traits"}, {id: "food", name: "Food & Drinks"},
+            {id: "places", name: "Places & Travel"}, {id: "nature", name: "Nature & Weather"},
+            {id: "objects", name: "Everyday Objects"}, {id: "professions", name: "Professions & Study"}
+        ];
+
+        const lowSatColors = [
+            'rgba(173, 193, 230, 0.08)', 'rgba(235, 188, 188, 0.08)',
+            'rgba(180, 225, 200, 0.08)', 'rgba(238, 222, 186, 0.08)',
+            'rgba(215, 198, 237, 0.08)', 'rgba(182, 222, 229, 0.08)'
+        ];
+
+        let selectedMode = ''; 
+        let selectedCategory = '';
+        let quizQuestionsPool = [];
+        let currentQuestionIdx = 0;
+        let userQuizScore = 0;
+        let isOptionProcessing = false;
+
+        const shapesLayer = document.getElementById('shapesLayer');
+        function generateBackgroundGeometry() {
+            const count = 15;
+            for(let i=0; i<count; i++) {
+                const shape = document.createElement('div');
+                const isCircle = Math.random() > 0.5;
+                shape.className = `shape ${isCircle ? 'circle' : 'square'}`;
+                const size = Math.random() * 100 + 70;
+                shape.style.width = `${size}px`;
+                shape.style.height = `${size}px`;
+                shape.style.background = lowSatColors[Math.floor(Math.random() * lowSatColors.length)];
+                shape.style.left = `${Math.random() * 90}%`;
+                shape.style.top = `${Math.random() * 90}%`;
+                const duration = Math.random() * 20 + 20;
+                shape.style.animation = `floatSlow ${duration}s linear infinite alternate`;
+                shape.style.animationDelay = `-${Math.random() * 20}s`;
+                shapesLayer.appendChild(shape);
+            }
+        }
+        generateBackgroundGeometry();
+
+        function navigateTo(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            document.getElementById('globalDictBox').style.display = 'none';
+            window.scrollTo(0,0);
+        }
+
+        // Fixed Menu Clicking logic
+        document.querySelectorAll('#modeScreen .floating-opt').forEach(opt => {
+            opt.addEventListener('click', () => {
+                const action = opt.getAttribute('data-action');
+                selectedMode = opt.getAttribute('data-mode');
+                
+                if (action === 'sentences') {
+                    generateSentencesFlowchart();
+                    navigateTo('flowchartScreen');
+                } else if (action === 'stories') {
+                    buildStoriesSubMenu();
+                    navigateTo('categoryScreen');
+                } else if (action === 'vocab') {
+                    buildCategoryGrid();
+                    navigateTo('categoryScreen');
+                }
+            });
+        });
+
+        function buildCategoryGrid() {
+            const container = document.getElementById('categoryGridContainer');
+            const backBtn = document.getElementById('categoryBackBtn');
+            container.innerHTML = '';
+            backBtn.onclick = () => navigateTo('modeScreen');
+
+            categoriesConfig.forEach(cat => {
+                const item = document.createElement('div');
+                item.className = 'floating-opt';
+                item.textContent = cat.name;
+                item.addEventListener('click', () => {
+                    selectedCategory = cat.id;
+                    if (selectedMode === 'quiz') {
+                        initiateQuizFlow();
+                    } else {
+                        generateFlowchartData();
+                        navigateTo('flowchartScreen');
+                    }
+                });
+                container.appendChild(item);
+            });
+
+            const mixedOpt = document.createElement('div');
+            mixedOpt.className = 'floating-opt';
+            mixedOpt.style.gridColumn = '1 / -1';
+            mixedOpt.style.background = 'rgba(255,255,255,0.05)';
+            mixedOpt.textContent = "⚡ Full Random Mix Session";
+            mixedOpt.addEventListener('click', () => {
+                selectedCategory = 'all_mixed';
+                if (selectedMode === 'quiz') {
+                    initiateQuizFlow();
+                } else {
+                    generateFlowchartData();
+                    navigateTo('flowchartScreen');
+                }
+            });
+            container.appendChild(mixedOpt);
+        }
+
+        function buildStoriesSubMenu() {
+            const container = document.getElementById('categoryGridContainer');
+            const backBtn = document.getElementById('categoryBackBtn');
+            container.innerHTML = '';
+            backBtn.onclick = () => navigateTo('modeScreen');
+
+            const storyTiers = [
+                { id: "short", name: "1) Very Simple & Short (10 Lines Basics)" },
+                { id: "moderate", name: "2) Moderate Easy (Long Child Stories)" },
+                { id: "a1final", name: "3) Final A1 Framework Stories" }
+            ];
+
+            storyTiers.forEach(tier => {
+                const optNode = document.createElement('div');
+                optNode.className = 'floating-opt';
+                optNode.style.gridColumn = '1 / -1';
+                optNode.style.borderColor = 'rgba(168, 85, 247, 0.25)';
+                optNode.textContent = tier.name;
+                optNode.addEventListener('click', () => {
+                    renderStoriesListTitles(tier.id);
+                });
+                container.appendChild(optNode);
+            });
+        }
+
+        function renderStoriesListTitles(tierId) {
+            const container = document.getElementById('categoryGridContainer');
+            const backBtn = document.getElementById('categoryBackBtn');
+            container.innerHTML = '';
+            backBtn.onclick = () => buildStoriesSubMenu();
+
+            const selectedList = storiesRepository[tierId];
+            selectedList.forEach((story) => {
+                const titleBlock = document.createElement('div');
+                titleBlock.className = 'floating-opt';
+                titleBlock.style.gridColumn = '1 / -1';
+                titleBlock.innerHTML = `📖 <span style="color:#e9d5ff; margin-left:8px;">${story.title}</span>`;
+                titleBlock.addEventListener('click', () => {
+                    launchStoryReaderCanvas(story, tierId);
+                });
+                container.appendChild(titleBlock);
+            });
+        }
+
+        function launchStoryReaderCanvas(storyObject, tierId) {
+            const displayCard = document.getElementById('storyDisplayCardArea');
+            const transBtn = document.getElementById('toggleTranslationBtn');
+            const backBtn = document.getElementById('readerBackBtn');
+
+            backBtn.onclick = () => {
+                renderStoriesListTitles(tierId);
+                navigateTo('categoryScreen');
+            };
+
+            displayCard.innerHTML = `
+                <div class="story-title-view">${storyObject.title}</div>
+                <div class="story-interactive-pane" id="interactiveTextPane"></div>
+                <div class="translation-overlay-box" id="storyTranslationBox">${storyObject.en}</div>
+            `;
+
+            const textPane = document.getElementById('interactiveTextPane');
+            const paragraphs = storyObject.de.split('\n');
+            
+            paragraphs.forEach(para => {
+                const paragraphNode = document.createElement('p');
+                const wordTokens = para.split(' ');
+                
+                wordTokens.forEach(token => {
+                    const cleanLookupKey = token.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"").toLowerCase();
+                    const spanWord = document.createElement('span');
+                    spanWord.className = 'interactive-word';
+                    spanWord.textContent = token + ' ';
+                    
+                    spanWord.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showGlobalDictPopupBubble(cleanLookupKey, e);
+                    });
+                    
+                    paragraphNode.appendChild(spanWord);
+                });
+                textPane.appendChild(paragraphNode);
+            });
+
+            transBtn.onclick = () => {
+                const transBox = document.getElementById('storyTranslationBox');
+                transBox.classList.toggle('visible');
+            };
+
+            navigateTo('storyReaderScreen');
+        }
+
+        function showGlobalDictPopupBubble(wordKey, event) {
+            const popbox = document.getElementById('globalDictBox');
+            let definition = DictionaryWordsMapping[wordKey];
+            if(!definition) {
+                definition = "A1 Core Structural Word";
+            }
+            popbox.innerHTML = `<strong style="color:#c084fc;">${wordKey}</strong>: ${definition}`;
+            popbox.style.display = 'block';
+            popbox.style.left = `${event.pageX}px`;
+            popbox.style.top = `${event.pageY}px`;
+        }
+
+        document.addEventListener('click', () => {
+            document.getElementById('globalDictBox').style.display = 'none';
+        });
+
+        function generateSentencesFlowchart() {
+            const container = document.getElementById('flowchartWorkspace');
+            const backBtn = document.getElementById('flowchartBackBtn');
+            container.innerHTML = '';
+            backBtn.onclick = () => navigateTo('modeScreen');
+
+            sentencesData.forEach((item, index) => {
+                const node = document.createElement('div');
+                node.className = 'flow-node';
+                node.style.width = '95%'; 
+                node.innerHTML = `
+                    <div class="node-left" style="font-size: 16px;">${item.en}</div>
+                    <div class="node-right" style="font-size: 16px; color:#a1a1aa;">${item.de}</div>
+                `;
+                container.appendChild(node);
+                if (index < sentencesData.length - 1) {
+                    const connector = document.createElement('div');
+                    connector.className = 'flow-connector';
+                    container.appendChild(connector);
+                }
+            });
+        }
+
+        function generateFlowchartData() {
+            const container = document.getElementById('flowchartWorkspace');
+            const backBtn = document.getElementById('flowchartBackBtn');
+            container.innerHTML = '';
+            backBtn.onclick = () => navigateTo('categoryScreen');
+            
+            let localPool = [];
+            if (selectedCategory === 'all_mixed' || selectedMode === 'random') {
+                localPool = Object.values(vocabularyData).flat().sort(() => Math.random() - 0.5).slice(0, 50);
+            } else {
+                localPool = [...vocabularyData[selectedCategory]];
+            }
+
+            localPool.forEach((item, index) => {
+                let leftText = ''; let rightText = '';
+                if (selectedMode === 'de-en') { leftText = item.de; rightText = item.en; }
+                else if (selectedMode === 'en-de') { leftText = item.en; rightText = item.de; }
+                else {
+                    if (Math.random() > 0.5) { leftText = item.de; rightText = `(${item.en})`; }
+                    else { leftText = item.en; rightText = `(${item.de})`; }
+                }
+
+                const node = document.createElement('div');
+                node.className = 'flow-node';
+                node.innerHTML = `<div class="node-left">${leftText}</div><div class="node-right">${rightText}</div>`;
+                container.appendChild(node);
+
+                if (index < localPool.length - 1) {
+                    const connector = document.createElement('div');
+                    connector.className = 'flow-connector';
+                    container.appendChild(connector);
+                }
+            });
+        }
+
+        function initiateQuizFlow() {
+            let sourcePool = [];
+            if (selectedCategory === 'all_mixed') {
+                sourcePool = Object.values(vocabularyData).flat();
+            } else {
+                sourcePool = [...vocabularyData[selectedCategory]];
+            }
+
+            const shuffled = sourcePool.sort(() => Math.random() - 0.5);
+            quizQuestionsPool = shuffled.slice(0, 10).map(item => {
+                const directionFlag = Math.random() > 0.5; 
+                return {
+                    questionWord: directionFlag ? item.de : item.en,
+                    correctTarget: directionFlag ? item.en : item.de,
+                    isGermanQuestion: directionFlag
+                };
+            });
+
+            currentQuestionIdx = 0;
+            userQuizScore = 0;
+            isOptionProcessing = false;
+            renderNextQuizQuestionCard();
+            navigateTo('quizScreen');
+        }
+
+        function renderNextQuizQuestionCard() {
+            const container = document.getElementById('quizContainerBox');
+            container.innerHTML = '';
+
+            if (currentQuestionIdx >= quizQuestionsPool.length) {
+                container.innerHTML = `
+                    <div class="score-layout">
+                        <div class="quiz-progress">Session Completed</div>
+                        <h2>Your Performance Metrics</h2>
+                        <div class="score-val">${userQuizScore} / ${quizQuestionsPool.length}</div>
+                        <button class="floating-opt" style="width:100%;" onclick="navigateTo('categoryScreen')">Return to Categories</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const currentQ = quizQuestionsPool[currentQuestionIdx];
+            const globalFlatPool = Object.values(vocabularyData).flat();
+            const filteredDistractions = globalFlatPool
+                .map(i => currentQ.isGermanQuestion ? i.en : i.de)
+                .filter(val => val !== currentQ.correctTarget);
+            
+            const distinctWrongOptions = [...new Set(filteredDistractions)].sort(() => Math.random() - 0.5).slice(0, 3);
+            const localizedOptionsList = [currentQ.correctTarget, ...distinctWrongOptions].sort(() => Math.random() - 0.5);
+
+            const trackingHeader = document.createElement('div');
+            trackingHeader.className = 'quiz-progress';
+            trackingHeader.textContent = `Question ${currentQuestionIdx + 1} of ${quizQuestionsPool.length}`;
+            container.appendChild(trackingHeader);
+
+            const labelQuestion = document.createElement('div');
+            labelQuestion.className = 'quiz-question';
+            labelQuestion.innerHTML = `<span style="font-size:14px; display:block; opacity:0.5; font-weight:500;">Translate:</span> "${currentQ.questionWord}"`;
+            container.appendChild(labelQuestion);
+
+            const optionsWrapperGrid = document.createElement('div');
+            optionsWrapperGrid.className = 'quiz-options-list';
+
+            localizedOptionsList.forEach(optString => {
+                const btnNode = document.createElement('button');
+                btnNode.className = 'quiz-btn';
+                btnNode.textContent = optString;
+                
+                btnNode.addEventListener('click', () => {
+                    if(isOptionProcessing) return;
+                    isOptionProcessing = true;
+
+                    if (optString === currentQ.correctTarget) {
+                        btnNode.classList.add('correct');
+                        userQuizScore++;
+                    } else {
+                        btnNode.classList.add('wrong');
+                        Array.from(optionsWrapperGrid.children).forEach(child => {
+                            if(child.textContent === currentQ.correctTarget) child.classList.add('correct');
+                        });
+                    }
+
+                    setTimeout(() => {
+                        currentQuestionIdx++;
+                        isOptionProcessing = false;
+                        renderNextQuizQuestionCard();
+                    }, 1400);
+                });
+                optionsWrapperGrid.appendChild(btnNode);
+            });
+            container.appendChild(optionsWrapperGrid);
+        }
+    </script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js");
+      }
+    </script>
+</body>
+</html>
+
